@@ -42,7 +42,7 @@ const App: React.FC = () => {
     }
 
     setStage(AppStage.GENERATING_QUESTIONS);
-    setLoadingMessage('당신의 고민을 정밀 분석하여 최적의 질문 20개를 생성 중입니다...');
+    setLoadingMessage('당신의 고민에 꼭 필요한 핵심 질문들을 생성 중입니다...');
     
     try {
       const generated = await generateQuestions(topic);
@@ -51,7 +51,7 @@ const App: React.FC = () => {
       setCurrentIndex(0);
     } catch (err: any) {
       handleError(err, '질문 생성 중 문제가 발생했습니다.');
-      setStage(AppStage.START); // 질문 생성 단계 실패는 초기 화면으로
+      setStage(AppStage.START);
     }
   };
 
@@ -76,14 +76,13 @@ const App: React.FC = () => {
   const finishAnswering = async () => {
     setError(null);
     setStage(AppStage.ANALYZING);
-    setLoadingMessage('20개의 답변을 종합 분석하여 마스터 플랜을 작성 중입니다...');
+    setLoadingMessage('제공하신 답변들을 정밀 분석하여 최적의 해답을 도출 중입니다...');
     try {
       const result = await analyzeDecision(topic, questions, answers);
       setAnalysis(result);
       setStage(AppStage.RESULT);
     } catch (err: any) {
       handleError(err, '최종 분석 중 문제가 발생했습니다.');
-      // 중요: 분석 실패 시 START로 돌아가지 않고 ANALYZING 상태를 유지하여 재시도를 유도함
     }
   };
 
@@ -132,7 +131,6 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Professional Alert (Start stage only or General errors) */}
         {error && stage !== AppStage.ANALYZING && (
           <div className="mx-8 mt-8 p-5 bg-rose-50 border border-rose-100 rounded-[2rem] text-rose-800 flex items-start gap-4 animate-shake">
             <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -169,7 +167,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* GENERATING QUESTIONS STAGE */}
           {stage === AppStage.GENERATING_QUESTIONS && (
             <div className="flex flex-col items-center justify-center py-24 space-y-10 animate-fadeIn">
               <div className="relative">
@@ -184,7 +181,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* ANALYZING STAGE (WITH ERROR RETRY) */}
           {stage === AppStage.ANALYZING && (
             <div className="flex flex-col items-center justify-center py-10 space-y-10 animate-fadeIn">
               {error ? (
@@ -197,7 +193,7 @@ const App: React.FC = () => {
                     <p className="text-slate-500 font-medium leading-relaxed max-w-sm mx-auto">
                       {error}
                     </p>
-                    <p className="text-xs text-indigo-500 font-bold uppercase tracking-wider">사용자의 답변 20개는 안전하게 보관되어 있습니다.</p>
+                    <p className="text-xs text-indigo-500 font-bold uppercase tracking-wider">사용자의 답변들은 안전하게 보관되어 있습니다.</p>
                   </div>
                   <div className="flex flex-col gap-3 pt-6">
                     <button 
@@ -224,7 +220,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="text-center space-y-4">
                     <p className="text-2xl font-black text-slate-800 tracking-tighter">{loadingMessage}</p>
-                    <p className="text-slate-400 text-sm animate-pulse">서버 과부하 시 자동으로 재시도를 시도합니다. 잠시만 기다려주세요.</p>
+                    <p className="text-slate-400 text-sm animate-pulse">잠시만 기다려주세요...</p>
                   </div>
                 </>
               )}
@@ -235,7 +231,7 @@ const App: React.FC = () => {
             <div className="space-y-10 animate-fadeIn">
               <div className="space-y-3">
                 <div className="flex items-center gap-2 mb-2">
-                   <span className="px-3 py-1 bg-indigo-100 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest">Question {currentIndex + 1} / 20</span>
+                   <span className="px-3 py-1 bg-indigo-100 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest">Question {currentIndex + 1} / {questions.length}</span>
                 </div>
                 <h2 className="text-2xl font-black text-slate-800 leading-[1.3] tracking-tight">
                   {questions[currentIndex].text}

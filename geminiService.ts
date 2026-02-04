@@ -27,7 +27,6 @@ async function callWithRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T
         error.message?.includes("RESOURCE_EXHAUSTED");
 
       if (isRetryable && i < maxRetries - 1) {
-        // 지수 백오프: 1초, 2초, 4초 대기
         const waitTime = Math.pow(2, i) * 1000;
         console.warn(`AI 서버가 바쁩니다. ${waitTime}ms 후 재시도합니다... (시도 ${i + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -44,9 +43,11 @@ export const generateQuestions = async (topic: string): Promise<Question[]> => {
 
   return callWithRetry(async () => {
     const prompt = `I want to make a decision about: "${topic}". 
-    Please generate exactly 20 multiple-choice questions to help me narrow down the best decision. 
-    Each question should have 3 to 4 clear options. 
-    The questions should range from practical needs, personal preferences, budget, long-term goals, and situational context relevant to "${topic}".`;
+    Please determine the optimal number of questions needed to make a high-quality recommendation.
+    Generate at least 5 but no more than 20 multiple-choice questions. 
+    If the topic is simple, 5-8 questions are enough. If complex, use up to 20.
+    Each question must have 3 to 4 clear options. 
+    Ensure the questions cover all critical factors for "${topic}".`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -73,10 +74,12 @@ export const generateQuestions = async (topic: string): Promise<Question[]> => {
     });
 
     if (!response.text) {
-      throw new Error("질문을 생성하는 도중 AI 응답이 차단되었습니다. (안전 정책 등)");
+      throw new Error("질문을 생성하는 도중 AI 응답이 차단되었습니다.");
     }
 
-    return JSON.parse(response.text);
+    const questions: Question[] = JSON.parse(response.text);
+    // ID가 누락되거나 중복될 경우를 대비해 재정렬
+    return questions.map((q, index) => ({ ...q, id: index + 1 }));
   });
 };
 
@@ -101,7 +104,7 @@ export const analyzeDecision = async (topic: string, questions: Question[], answ
   const prompt = `당신은 세계 최고의 의사결정 컨설턴트입니다.
 사용자의 주제: "${topic}"
 
-아래는 사용자가 20가지 질문에 대해 응답한 내용입니다:
+아래는 사용자가 제공된 질문들에 대해 응답한 내용입니다:
 ${context}
 
 위 답변들을 철저히 분석하여, 사용자가 최선의 선택을 내릴 수 있도록 전문적인 리포트를 작성하세요.
@@ -132,13 +135,12 @@ ${context}
 
       const text = response.text;
       if (!text) {
-        throw new Error("분석 결과가 비어있습니다. 주제가 민감하여 차단되었을 수 있습니다.");
+        throw new Error("분석 결과가 비어있습니다.");
       }
 
       const cleanJson = text.replace(/^```json/, '').replace(/```$/, '').trim();
       return JSON.parse(cleanJson);
     } catch (e: any) {
-      // 구체적인 에러 상황별 메시지 래핑
       if (e.message?.includes("429") || e.message?.includes("QUOTA")) {
         throw new Error("API 사용량이 한도를 초과했습니다. 1분 뒤에 다시 시도해주세요.");
       }
