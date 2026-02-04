@@ -58,7 +58,7 @@ const App: React.FC = () => {
           setError("서비스 연결이 원활하지 않습니다. 잠시 후 다시 시도해주세요.");
         }
       } else {
-        setError(err.message || '요청을 처리하는 중 문제가 발생했습니다.');
+        setError(err.message || '질문 생성 중 문제가 발생했습니다.');
       }
       setStage(AppStage.START);
     }
@@ -90,7 +90,9 @@ const App: React.FC = () => {
       setAnalysis(result);
       setStage(AppStage.RESULT);
     } catch (err: any) {
-      setError('분석 과정에서 오류가 발생했습니다. 고민 내용을 확인 후 다시 시도해주세요.');
+      console.error("Finish Answering Error:", err);
+      // 구체적인 에러 메시지를 사용자에게 노출
+      setError(`분석 실패: ${err.message || '알 수 없는 오류가 발생했습니다.'}`);
       setStage(AppStage.START);
     }
   };
@@ -129,6 +131,7 @@ const App: React.FC = () => {
             </div>
             <div className="flex-1">
               <p className="text-sm font-bold leading-relaxed">{error}</p>
+              <p className="text-xs opacity-60 mt-1">주제가 너무 민감하거나 답변이 불충분할 경우 발생할 수 있습니다.</p>
             </div>
             <button onClick={() => setError(null)} className="text-rose-300 hover:text-rose-500">
               <i className="fas fa-times"></i>

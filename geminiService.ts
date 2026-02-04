@@ -5,7 +5,7 @@ import { Question } from "./types";
 const createAI = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === 'undefined' || apiKey.trim() === '') {
-    throw new Error("서비스 구성이 완료되지 않았습니다. 잠시 후 다시 시도해주세요.");
+    throw new Error("API 키가 설정되지 않았습니다. 환경 변수를 확인해주세요.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -42,15 +42,14 @@ export const generateQuestions = async (topic: string): Promise<Question[]> => {
     }
   });
 
-  const responseText = response.text;
-  if (!responseText) {
-    throw new Error("분석을 위한 질문을 생성하지 못했습니다.");
+  if (!response.text) {
+    throw new Error("질문을 생성하는 도중 AI 응답이 차단되었습니다. (안전 정책 등의 이유)");
   }
 
   try {
-    return JSON.parse(responseText);
+    return JSON.parse(response.text);
   } catch (e) {
-    throw new Error("데이터 해석 중 오류가 발생했습니다.");
+    throw new Error("생성된 질문 데이터를 해석하는 데 실패했습니다.");
   }
 };
 
@@ -67,51 +66,59 @@ export interface AnalysisResult {
 export const analyzeDecision = async (topic: string, questions: Question[], answers: Record<number, string>): Promise<AnalysisResult> => {
   const ai = createAI();
 
-  const context = questions.map(q => `Q: ${q.text} | A: ${answers[q.id]}`).join('\n');
-  const prompt = `The user wants to decide on: "${topic}".
-  Here are 20 questions and the user's answers:
-  ${context}
-  
-  Based on these specific answers, provide a comprehensive final decision in Korean.
-  
-  CRITICAL RULES:
-  1. DO NOT use any Markdown formatting (like **, #, -, etc.) inside the string values.
-  2. The text should be clean and ready to be displayed in an HTML card.
-  3. Ensure the 'finalRecommendation' is punchy and clear.
-  4. 'score' should be a number from 1 to 100 representing the confidence of this recommendation.
-  
-  Output MUST be in valid JSON.`;
+  // 답변 데이터 정제 및 컨텍스트 구성
+  const context = questions.map(q => {
+    const answer = answers[q.id] || "답변 없음";
+    return `질문: ${q.text}\n답변: ${answer}`;
+  }).join('\n\n');
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3-pro-preview",
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          finalRecommendation: { type: Type.STRING },
-          summary: { type: Type.STRING },
-          reasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
-          pros: { type: Type.ARRAY, items: { type: Type.STRING } },
-          cons: { type: Type.ARRAY, items: { type: Type.STRING } },
-          nextSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
-          score: { type: Type.NUMBER }
-        },
-        required: ["finalRecommendation", "summary", "reasoning", "pros", "cons", "nextSteps", "score"]
-      }
-    }
-  });
+  const prompt = `당신은 세계 최고의 의사결정 컨설턴트입니다.
+사용자의 주제: "${topic}"
 
-  const resultText = response.text;
-  if (!resultText) {
-    throw new Error("분석 결과를 생성하지 못했습니다.");
-  }
+아래는 사용자가 20가지 질문에 대해 응답한 내용입니다:
+${context}
+
+위 답변들을 철저히 분석하여, 사용자가 최선의 선택을 내릴 수 있도록 전문적인 리포트를 작성하세요.
+
+[필수 규칙]
+1. 모든 응답은 한국어로 작성하세요.
+2. 마크다운 기호(예: **, #, -, \` 등)를 절대 사용하지 마세요. 순수 텍스트만 사용하세요.
+3. finalRecommendation은 아주 명확하고 단호하게 한 문장으로 작성하세요.
+4. score는 1~100 사이의 숫자로, 답변의 일관성과 확신도를 나타냅니다.
+5. JSON 형식을 엄격히 준수하세요.`;
 
   try {
-    return JSON.parse(resultText);
-  } catch (e) {
-    console.error("Analysis JSON parse error", e);
-    throw new Error("결과 데이터를 처리하는 중 오류가 발생했습니다.");
+    const response = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            finalRecommendation: { type: Type.STRING },
+            summary: { type: Type.STRING },
+            reasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
+            pros: { type: Type.ARRAY, items: { type: Type.STRING } },
+            cons: { type: Type.ARRAY, items: { type: Type.STRING } },
+            nextSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
+            score: { type: Type.NUMBER }
+          },
+          required: ["finalRecommendation", "summary", "reasoning", "pros", "cons", "nextSteps", "score"]
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error("분석 결과가 비어있습니다. 주제가 너무 민감하거나 위험하여 AI가 응답을 거부했을 수 있습니다.");
+    }
+
+    // 혹시 모를 앞뒤 공백이나 마크다운 코드 블록 기호 제거
+    const cleanJson = text.replace(/^```json/, '').replace(/```$/, '').trim();
+    return JSON.parse(cleanJson);
+  } catch (e: any) {
+    console.error("Gemini Analysis Error:", e);
+    throw new Error(e.message || "분석 엔진에서 알 수 없는 오류가 발생했습니다.");
   }
 };
