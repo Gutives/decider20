@@ -89,7 +89,8 @@ ${context}
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      // 할당량 문제를 해결하기 위해 pro 대신 flash 모델을 사용합니다.
+      model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -114,11 +115,16 @@ ${context}
       throw new Error("분석 결과가 비어있습니다. 주제가 너무 민감하거나 위험하여 AI가 응답을 거부했을 수 있습니다.");
     }
 
-    // 혹시 모를 앞뒤 공백이나 마크다운 코드 블록 기호 제거
     const cleanJson = text.replace(/^```json/, '').replace(/```$/, '').trim();
     return JSON.parse(cleanJson);
   } catch (e: any) {
     console.error("Gemini Analysis Error:", e);
+    
+    // 할당량 초과(429) 에러인 경우 사용자 친화적인 메시지로 변환
+    if (e.message?.includes("429") || e.message?.includes("QUOTA_EXCEEDED") || e.message?.includes("RESOURCE_EXHAUSTED")) {
+      throw new Error("현재 AI 서비스의 무료 이용 한도를 초과했습니다. 잠시 후(약 1~2분 뒤) 다시 시도해주시거나, 유료 API 키를 사용해주세요.");
+    }
+    
     throw new Error(e.message || "분석 엔진에서 알 수 없는 오류가 발생했습니다.");
   }
 };

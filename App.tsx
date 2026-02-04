@@ -91,8 +91,22 @@ const App: React.FC = () => {
       setStage(AppStage.RESULT);
     } catch (err: any) {
       console.error("Finish Answering Error:", err);
-      // 구체적인 에러 메시지를 사용자에게 노출
-      setError(`분석 실패: ${err.message || '알 수 없는 오류가 발생했습니다.'}`);
+      // 복잡한 JSON 에러 객체가 문자열화된 경우를 대비해 메시지만 추출 시도
+      let errorMessage = "알 수 없는 오류가 발생했습니다.";
+      try {
+        if (typeof err.message === 'string') {
+          if (err.message.startsWith('{')) {
+            const parsed = JSON.parse(err.message);
+            errorMessage = parsed.error?.message || errorMessage;
+          } else {
+            errorMessage = err.message;
+          }
+        }
+      } catch (e) {
+        errorMessage = err.message;
+      }
+      
+      setError(`분석 실패: ${errorMessage}`);
       setStage(AppStage.START);
     }
   };
@@ -129,11 +143,11 @@ const App: React.FC = () => {
             <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center flex-shrink-0">
                <i className="fas fa-triangle-exclamation"></i>
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold leading-relaxed">{error}</p>
-              <p className="text-xs opacity-60 mt-1">주제가 너무 민감하거나 답변이 불충분할 경우 발생할 수 있습니다.</p>
+            <div className="flex-1 overflow-hidden">
+              <p className="text-sm font-bold leading-relaxed line-clamp-3">{error}</p>
+              <p className="text-xs opacity-60 mt-1">AI 서비스 할당량이 초과되었거나 주제가 너무 민감할 때 발생합니다.</p>
             </div>
-            <button onClick={() => setError(null)} className="text-rose-300 hover:text-rose-500">
+            <button onClick={() => setError(null)} className="text-rose-300 hover:text-rose-500 flex-shrink-0">
               <i className="fas fa-times"></i>
             </button>
           </div>
