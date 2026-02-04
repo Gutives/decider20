@@ -1,0 +1,6 @@
+
+{
+  "name": "decider20",
+  "description": "A sophisticated decision-making tool that generates 20 tailored multiple-choice questions based on your query and provides a synthesized final recommendation using AI.",
+  "requestFramePermissions": []
+}
