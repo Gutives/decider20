@@ -50,17 +50,8 @@ const App: React.FC = () => {
       setStage(AppStage.ANSWERING);
       setCurrentIndex(0);
     } catch (err: any) {
-      if (err.message && err.message.includes("Requested entity was not found.")) {
-        if (window.aistudio) {
-          await window.aistudio.openSelectKey();
-          setError("시스템 연결이 갱신되었습니다. 다시 시작 버튼을 눌러주세요.");
-        } else {
-          setError("서비스 연결이 원활하지 않습니다. 잠시 후 다시 시도해주세요.");
-        }
-      } else {
-        setError(err.message || '질문 생성 중 문제가 발생했습니다.');
-      }
-      setStage(AppStage.START);
+      handleError(err, '질문 생성 중 문제가 발생했습니다.');
+      setStage(AppStage.START); // 질문 생성 단계 실패는 초기 화면으로
     }
   };
 
@@ -83,6 +74,7 @@ const App: React.FC = () => {
   };
 
   const finishAnswering = async () => {
+    setError(null);
     setStage(AppStage.ANALYZING);
     setLoadingMessage('20개의 답변을 종합 분석하여 마스터 플랜을 작성 중입니다...');
     try {
@@ -90,24 +82,28 @@ const App: React.FC = () => {
       setAnalysis(result);
       setStage(AppStage.RESULT);
     } catch (err: any) {
-      console.error("Finish Answering Error:", err);
-      // 복잡한 JSON 에러 객체가 문자열화된 경우를 대비해 메시지만 추출 시도
-      let errorMessage = "알 수 없는 오류가 발생했습니다.";
+      handleError(err, '최종 분석 중 문제가 발생했습니다.');
+      // 중요: 분석 실패 시 START로 돌아가지 않고 ANALYZING 상태를 유지하여 재시도를 유도함
+    }
+  };
+
+  const handleError = (err: any, fallback: string) => {
+    console.error("Application Error:", err);
+    let msg = err.message || fallback;
+    
+    if (msg.startsWith('{')) {
       try {
-        if (typeof err.message === 'string') {
-          if (err.message.startsWith('{')) {
-            const parsed = JSON.parse(err.message);
-            errorMessage = parsed.error?.message || errorMessage;
-          } else {
-            errorMessage = err.message;
-          }
-        }
-      } catch (e) {
-        errorMessage = err.message;
-      }
-      
-      setError(`분석 실패: ${errorMessage}`);
-      setStage(AppStage.START);
+        const parsed = JSON.parse(msg);
+        msg = parsed.error?.message || msg;
+      } catch (e) {}
+    }
+
+    if (msg.includes("overloaded") || msg.includes("503")) {
+      setError("구글 AI 서버가 현재 매우 바쁩니다. 잠시만 기다렸다가 아래 '다시 시도' 버튼을 눌러주세요.");
+    } else if (msg.includes("Quota") || msg.includes("429")) {
+      setError("무료 사용 한도를 초과했습니다. 약 1분 뒤에 다시 시도해주세요.");
+    } else {
+      setError(msg);
     }
   };
 
@@ -125,7 +121,6 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 bg-[#fcfdff] text-slate-900">
       <div className="w-full max-w-2xl bg-white rounded-[3rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] overflow-hidden transition-all duration-700 border border-slate-100">
         
-        {/* Modern Transparent Header */}
         <header className="bg-indigo-600 px-8 py-10 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
           <div className="relative z-10 flex flex-col items-center text-center">
@@ -137,15 +132,14 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Professional Alert */}
-        {error && (
+        {/* Professional Alert (Start stage only or General errors) */}
+        {error && stage !== AppStage.ANALYZING && (
           <div className="mx-8 mt-8 p-5 bg-rose-50 border border-rose-100 rounded-[2rem] text-rose-800 flex items-start gap-4 animate-shake">
             <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center flex-shrink-0">
                <i className="fas fa-triangle-exclamation"></i>
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-bold leading-relaxed line-clamp-3">{error}</p>
-              <p className="text-xs opacity-60 mt-1">AI 서비스 할당량이 초과되었거나 주제가 너무 민감할 때 발생합니다.</p>
+              <p className="text-sm font-bold leading-relaxed">{error}</p>
             </div>
             <button onClick={() => setError(null)} className="text-rose-300 hover:text-rose-500 flex-shrink-0">
               <i className="fas fa-times"></i>
@@ -154,8 +148,6 @@ const App: React.FC = () => {
         )}
 
         <main className="p-8 md:p-12">
-          
-          {/* STAGE: START */}
           {stage === AppStage.START && (
             <div className="space-y-10 animate-fadeIn">
               <div className="space-y-5 text-center">
@@ -177,8 +169,8 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* STAGE: LOADING */}
-          {(stage === AppStage.GENERATING_QUESTIONS || stage === AppStage.ANALYZING) && (
+          {/* GENERATING QUESTIONS STAGE */}
+          {stage === AppStage.GENERATING_QUESTIONS && (
             <div className="flex flex-col items-center justify-center py-24 space-y-10 animate-fadeIn">
               <div className="relative">
                 <div className="w-32 h-32 border-[12px] border-slate-50 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -188,16 +180,57 @@ const App: React.FC = () => {
               </div>
               <div className="text-center space-y-4">
                 <p className="text-2xl font-black text-slate-800 tracking-tighter">{loadingMessage}</p>
-                <div className="flex items-center justify-center gap-2">
-                   <div className="w-2 h-2 bg-indigo-200 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                   <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                   <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"></div>
-                </div>
               </div>
             </div>
           )}
 
-          {/* STAGE: ANSWERING */}
+          {/* ANALYZING STAGE (WITH ERROR RETRY) */}
+          {stage === AppStage.ANALYZING && (
+            <div className="flex flex-col items-center justify-center py-10 space-y-10 animate-fadeIn">
+              {error ? (
+                <div className="w-full space-y-8 text-center">
+                  <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <i className="fas fa-triangle-exclamation text-3xl"></i>
+                  </div>
+                  <div className="space-y-4">
+                    <h2 className="text-2xl font-black text-slate-800">분석 중에 오류가 발생했습니다</h2>
+                    <p className="text-slate-500 font-medium leading-relaxed max-w-sm mx-auto">
+                      {error}
+                    </p>
+                    <p className="text-xs text-indigo-500 font-bold uppercase tracking-wider">사용자의 답변 20개는 안전하게 보관되어 있습니다.</p>
+                  </div>
+                  <div className="flex flex-col gap-3 pt-6">
+                    <button 
+                      onClick={finishAnswering}
+                      className="w-full py-6 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xl rounded-[2.5rem] shadow-2xl transition-all transform active:scale-[0.97] flex items-center justify-center gap-4"
+                    >
+                      <i className="fas fa-rotate-right"></i> 지금 다시 분석 시도
+                    </button>
+                    <button 
+                      onClick={() => setStage(AppStage.ANSWERING)}
+                      className="w-full py-5 bg-white border-2 border-slate-100 text-slate-400 font-bold rounded-[2.5rem] hover:bg-slate-50 transition-all"
+                    >
+                      답변 수정하러 가기
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="relative">
+                    <div className="w-32 h-32 border-[12px] border-slate-50 border-t-indigo-600 rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center text-indigo-600">
+                      <i className="fas fa-brain text-4xl animate-pulse"></i>
+                    </div>
+                  </div>
+                  <div className="text-center space-y-4">
+                    <p className="text-2xl font-black text-slate-800 tracking-tighter">{loadingMessage}</p>
+                    <p className="text-slate-400 text-sm animate-pulse">서버 과부하 시 자동으로 재시도를 시도합니다. 잠시만 기다려주세요.</p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {stage === AppStage.ANSWERING && questions.length > 0 && (
             <div className="space-y-10 animate-fadeIn">
               <div className="space-y-3">
@@ -209,7 +242,6 @@ const App: React.FC = () => {
                 </h2>
               </div>
 
-              {/* Minimal Progress Bar */}
               <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-indigo-600 transition-all duration-1000 ease-out"
@@ -262,11 +294,8 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* STAGE: RESULT (HTML Report) */}
           {stage === AppStage.RESULT && analysis && (
             <div className="space-y-12 animate-fadeIn pb-10">
-              
-              {/* Score & Badge */}
               <div className="flex flex-col items-center gap-4">
                  <div className="relative w-24 h-24 flex items-center justify-center">
                     <svg className="w-full h-full transform -rotate-90">
@@ -278,7 +307,6 @@ const App: React.FC = () => {
                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">AI Confidence Score</p>
               </div>
 
-              {/* Hero Conclusion Card */}
               <div className="text-center space-y-6">
                 <span className="inline-block px-5 py-2 bg-indigo-50 text-indigo-700 rounded-full text-xs font-black uppercase tracking-widest border border-indigo-100">Recommended Path</span>
                 <h2 className="text-3xl md:text-5xl font-black text-slate-900 leading-[1.2] tracking-tight px-4">
@@ -289,9 +317,7 @@ const App: React.FC = () => {
                 </p>
               </div>
 
-              {/* Detailed Breakdown Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Reasoning Column */}
                 <div className="space-y-6">
                   <h3 className="text-lg font-black text-slate-800 flex items-center gap-3">
                      <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center text-xs">
@@ -309,7 +335,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Pros/Cons Column */}
                 <div className="space-y-6">
                   <h3 className="text-lg font-black text-slate-800 flex items-center gap-3">
                      <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center text-xs">
@@ -340,7 +365,6 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action Plan Section */}
               <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl space-y-8 relative overflow-hidden">
                 <div className="absolute bottom-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full -mb-24 -mr-24 blur-3xl"></div>
                 <h3 className="text-2xl font-black flex items-center gap-4 relative z-10">
@@ -358,7 +382,6 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Bottom Actions */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 no-print pt-6">
                 <button 
                   onClick={() => window.print()}
@@ -375,11 +398,9 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
-
         </main>
       </div>
       
-      {/* Footer Branding */}
       <footer className="mt-12 text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] flex flex-col items-center gap-4 no-print pb-10">
         <div className="flex items-center gap-8 opacity-50">
           <span className="flex items-center gap-2 underline underline-offset-4 decoration-2 decoration-indigo-500/20">decider20</span>
