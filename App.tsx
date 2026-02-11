@@ -355,13 +355,18 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl space-y-8 overflow-hidden relative">
-                <h3 className="text-2xl font-black flex items-center gap-4 relative z-10"><i className="fas fa-paper-plane text-indigo-400"></i> 실행 가이드</h3>
+              {/* 실행 가이드 섹션 - 인쇄 잉크 절약 스타일로 수정 */}
+              <div className="bg-indigo-50/50 border-2 border-indigo-100 p-10 rounded-[3rem] shadow-sm space-y-8 overflow-hidden relative">
+                <h3 className="text-2xl font-black text-slate-900 flex items-center gap-4 relative z-10">
+                  <i className="fas fa-paper-plane text-indigo-600"></i> 실행 가이드
+                </h3>
                 <div className="grid grid-cols-1 gap-4 relative z-10">
                   {analysis.nextSteps.map((step, i) => (
-                    <div key={i} className="flex items-center gap-5 bg-white/5 p-5 rounded-[1.5rem] border border-white/10">
-                      <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center font-black">{i+1}</div>
-                      <p className="font-bold text-slate-100">{step}</p>
+                    <div key={i} className="flex items-center gap-5 bg-white p-5 rounded-[1.5rem] border border-indigo-100 shadow-sm">
+                      <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black flex-shrink-0 shadow-md">
+                        {i+1}
+                      </div>
+                      <p className="font-bold text-slate-700 leading-relaxed">{step}</p>
                     </div>
                   ))}
                 </div>
