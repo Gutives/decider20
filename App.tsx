@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppStage, Question } from './types';
 import { generateQuestions, analyzeDecision, AnalysisResult } from './geminiService';
 
@@ -24,6 +24,11 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [additionalInput, setAdditionalInput] = useState('');
   const [isRefining, setIsRefining] = useState(false);
+
+  // 질문이 바뀌거나 단계가 바뀔 때 화면 상단으로 부드럽게 이동
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentIndex, stage]);
 
   const handleOpenKeySelector = async () => {
     if (window.aistudio) {
@@ -88,7 +93,6 @@ const App: React.FC = () => {
       const result = await analyzeDecision(topic, questions, answers, additionalInput);
       setAnalysis(result);
       setAdditionalInput('');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       handleError(err, '심층 분석 중 문제가 발생했습니다.');
     } finally {
@@ -124,7 +128,6 @@ const App: React.FC = () => {
     try {
       const result = await analyzeDecision(topic, questions, answers, undefined, altTitle);
       setAnalysis(result);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       handleError(err, '대안 상세 분석 중 문제가 발생했습니다.');
     } finally {
@@ -237,11 +240,11 @@ const App: React.FC = () => {
           )}
 
           {stage === AppStage.RESULT && analysis && (
-            <div className={`space-y-12 animate-fadeIn pb-10 ${isRefining ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+            <div className={`space-y-12 animate-fadeIn pb-10 transition-all duration-500 ${isRefining ? 'opacity-30 blur-sm grayscale' : ''}`}>
               {isRefining && (
                 <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm pointer-events-auto">
                    <div className="w-16 h-16 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
-                   <p className="text-xl font-black text-slate-800">해당 선택지로 심층 분석 중입니다...</p>
+                   <p className="text-xl font-black text-slate-800">심층 분석 중입니다...</p>
                 </div>
               )}
 
@@ -265,7 +268,7 @@ const App: React.FC = () => {
               {analysis.refinedInsight && (
                 <div className="bg-amber-50 border border-amber-100 p-8 rounded-[2.5rem] space-y-4 animate-fadeIn">
                    <h3 className="text-amber-800 font-black flex items-center gap-3 uppercase text-xs tracking-widest">
-                      <i className="fas fa-magnifying-glass-plus"></i> 추가 고려사항 심층 진단
+                      <i className="fas fa-magnifying-glass-plus"></i> 심층 분석 통찰
                    </h3>
                    <p className="text-amber-900 font-bold leading-relaxed">{analysis.refinedInsight}</p>
                 </div>
@@ -304,14 +307,14 @@ const App: React.FC = () => {
               <div className="pt-10 border-t border-slate-100 space-y-6 no-print">
                  <div className="flex flex-col items-center text-center space-y-2">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Custom Refinement</span>
-                    <h3 className="text-2xl font-black text-slate-800">분석에 더 반영할 내용이 있나요?</h3>
-                    <p className="text-sm text-slate-500">놓친 점이나 현재 가장 크게 걸리는 고민을 적어주시면 상세히 재분석해 드립니다.</p>
+                    <h3 className="text-2xl font-black text-slate-800">더 반영할 내용이 있나요?</h3>
+                    <p className="text-sm text-slate-500">놓친 변수나 현재 가장 크게 걸리는 고민을 적어주시면 즉시 재분석해 드립니다.</p>
                  </div>
                  <div className="relative">
                     <textarea 
                       value={additionalInput}
                       onChange={(e) => setAdditionalInput(e.target.value)}
-                      placeholder="예: '사실 예산보다 거리가 더 중요해요' 혹은 '이미 해당 지역에 아는 사람이 있어요' 등..."
+                      placeholder="예: '예산보다는 효율성이 더 중요해요' 혹은 '현실적인 제약 사항이 생겼어요' 등..."
                       className="w-full p-8 border-2 border-slate-50 bg-slate-50 rounded-[2.5rem] focus:border-indigo-500 focus:bg-white focus:ring-[12px] focus:ring-indigo-50 transition-all text-base h-32 resize-none outline-none leading-relaxed"
                     />
                     <button 
@@ -327,21 +330,24 @@ const App: React.FC = () => {
 
               {analysis.alternatives && analysis.alternatives.length > 0 && (
                 <div className="space-y-8 pt-10 border-t border-slate-100">
-                  <h3 className="text-2xl font-black text-slate-800 text-center">다른 최선의 대안들</h3>
+                  <div className="text-center space-y-2">
+                    <h3 className="text-2xl font-black text-slate-800">다른 추천 대안들</h3>
+                    <p className="text-sm text-slate-400 font-medium">선택 시 해당 대안을 중심으로 리포트가 재구성됩니다.</p>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {analysis.alternatives.map((alt, i) => (
-                      <div key={i} className="p-8 bg-slate-50 border border-slate-100 rounded-[2.5rem] hover:bg-white hover:shadow-xl transition-all flex flex-col justify-between">
+                      <div key={i} className="p-8 bg-slate-50 border border-slate-100 rounded-[2.5rem] hover:bg-white hover:shadow-xl transition-all flex flex-col justify-between group">
                          <div className="space-y-4">
                            <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center text-xs font-black">ALT {i+1}</div>
-                           <h4 className="text-xl font-black text-slate-900">{alt.title}</h4>
+                           <h4 className="text-xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{alt.title}</h4>
                            <p className="text-sm text-slate-500 font-medium leading-relaxed">{alt.summary}</p>
-                           <p className="text-xs font-bold text-indigo-600 pt-2">차선책 사유: <span className="text-slate-600 font-medium">{alt.whyThis}</span></p>
+                           <p className="text-xs font-bold text-indigo-600 pt-2 border-t border-slate-200 mt-2">차선책 사유: <span className="text-slate-600 font-medium">{alt.whyThis}</span></p>
                          </div>
                          <button 
                             onClick={() => switchToAlternative(alt.title)} 
-                            className="mt-8 py-3 w-full bg-white border border-slate-200 text-slate-400 font-bold rounded-2xl hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all text-xs"
+                            className="mt-8 py-4 w-full bg-white border border-indigo-100 text-indigo-600 font-black rounded-2xl hover:bg-indigo-600 hover:text-white transition-all text-xs shadow-sm"
                          >
-                            이 대안으로 상세 리포트 확인
+                            해당 대안으로 심층 분석
                          </button>
                       </div>
                     ))}
@@ -369,6 +375,13 @@ const App: React.FC = () => {
           )}
         </main>
       </div>
+
+      {isRefining && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] bg-slate-900 text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-4 animate-fadeIn no-print">
+           <i className="fas fa-spinner animate-spin text-indigo-400"></i>
+           <span className="text-sm font-black uppercase tracking-widest">Processing deep-dive analysis...</span>
+        </div>
+      )}
       
       <footer className="mt-12 text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] flex flex-col items-center gap-6 no-print pb-10">
         <div className="flex flex-wrap items-center justify-center gap-6 opacity-60">
